@@ -104,13 +104,44 @@ pipeline {
 
         stage('Deploy & Smoke Test') {
             steps {
-                // TODO: despliegue el stack de deploy/docker-compose.yml
-                // referenciando la imagen recién publicada (pase
-                // "${IMAGE_TAG}" como variable de entorno o mediante un
-                // archivo .env generado en este mismo stage), y valide
-                // con curl (con reintentos) que /api/tasks responda.
-                sh 'TODO-DEPLOY-DOCKER-COMPOSE'
-                sh 'TODO-SMOKE-TEST-CURL-CON-REINTENTOS'
+                // 1. Despliegue usando la imagen con el tag del build
+                sh '''
+                    IMAGE_TAG="${IMAGE_TAG}" docker compose -f deploy/docker-compose.yml up -d --build
+                '''
+
+                // 2. Smoke Test con reintentos para validar /api/tasks
+                sh '''
+                    echo "Iniciando validación de disponibilidad en /api/tasks..."
+                    
+                    MAX_ATTEMPTS=12
+                    WAIT_SECONDS=5
+                    ATTEMPT=1
+                    SUCCESS=false
+
+                    while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+                        echo "Intento $ATTEMPT de $MAX_ATTEMPTS: haciendo curl a /api/tasks..."
+                        
+                        # Ajusta el puerto/host si tu servicio escucha en otro puerto (ej: http://localhost:8080/api/tasks)
+                        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/tasks || true)
+
+                        if [ "$HTTP_STATUS" -eq 200 ]; then
+                            echo "✅ Smoke test exitoso! /api/tasks respondió con HTTP 200 OK."
+                            SUCCESS=true
+                            break
+                        else
+                            echo "⚠️ El servicio aún no responde OK (Status HTTP: $HTTP_STATUS). Esperando ${WAIT_SECONDS}s..."
+                            sleep $WAIT_SECONDS
+                            ATTEMPT=$((ATTEMPT + 1))
+                        fi
+                    done
+
+                    if [ "$SUCCESS" = false ]; then
+                        echo "❌ ERROR: Smoke test falló tras $MAX_ATTEMPTS intentos."
+                        echo "Mostrando logs del contenedor para depuración:"
+                        docker compose -f deploy/docker-compose.yml logs --tail 50
+                        exit 1
+                    fi
+                '''
             }
         }
     }
