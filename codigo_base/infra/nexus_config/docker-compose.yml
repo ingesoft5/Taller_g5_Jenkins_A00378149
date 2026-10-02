@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   nexus:
     image: sonatype/nexus3:3.68.1
@@ -10,15 +9,21 @@ services:
     volumes:
       - nexus_data:/nexus-data
     environment:
-      - INSTALL4J_ADD_VM_PARAMS=-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2
+      - INSTALL4J_ADD_VMPARAMS=-Xms2048m -Xmx2048m -XX:MaxDirectMemorySize=2048m
+    deploy:
+      resources:
+        limits:
+          memory: 4g
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8081/service/rest/v1/status >/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 6
       start_period: 90s
+
 networks:
   cicd_network:
     external: true
+
 volumes:
   nexus_data:
