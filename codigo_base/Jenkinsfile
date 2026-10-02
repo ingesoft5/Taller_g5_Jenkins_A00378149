@@ -1,42 +1,30 @@
 // =============================================================================
 // Taller Evaluativo 2 - Fase 4: Pipeline Declarativo en Jenkins
-//
-// Complete los TODOs de cada etapa. Recuerde:
-//   - Prohibido el tag ":latest" al publicar en Nexus (empaquetamiento
-//     inmutable, Fase 2).
-//   - Las credenciales (usuario/clave de Nexus, token de GitHub) se
-//     inyectan mediante los IDs configurados en Jenkins > Credentials,
-//     NUNCA en texto plano dentro de este archivo.
 // =============================================================================
 
 pipeline {
     agent any
 
     environment {
-        // TODO: defina el esquema de versionado inmutable combinando el
-        // número de build de Jenkins y los primeros 7 caracteres del
-        // commit actual. Pista: use "${env.BUILD_NUMBER}" y
-        // "${env.GIT_COMMIT.take(7)}" dentro de un stage con "script {}"
-        // (GIT_COMMIT solo está disponible después del checkout).
-        
-        IMAGE_TAG = "TODO-DEFINA-EN-UN-STAGE-SCRIPT"
-
-        // TODO: ajuste host y puerto a los de su Nexus local (Fase 3).
-        NEXUS_REGISTRY   = "TODO-HOST-REGISTRY:TODO-PUERTO-REGISTRY"
+        // Puerto/host interno del connector de Docker en Nexus
+        NEXUS_REGISTRY   = "nexus:8082" 
         NEXUS_MAVEN_REPO = "http://nexus:8081/repository/maven-releases/"
+        
+        // ID de la credencial creada en Jenkins > Credentials
+        NEXUS_CREDENTIALS_ID = "nexus-credentials"
 
-        // TODO: reemplace por el ID exacto de la credencial que usted
-        // creó en Jenkins > Manage Jenkins > Credentials (Fase 3.e).
-        NEXUS_CREDENTIALS_ID = "TODO-ID-CREDENCIAL-NEXUS"
+        // URL base de la API para construir el Frontend
+        VITE_API_URL = "http://localhost:8080"
     }
 
     stages {
 
-            stage('Checkout & Test') {
+        stage('Checkout & Test') {
             steps {
                 checkout scm
 
                 script {
+                    // Tag inmutable: Número de build + 7 caracteres del hash de Git
                     env.IMAGE_TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
                     echo "IMAGE_TAG = ${env.IMAGE_TAG}"
                 }
@@ -51,13 +39,13 @@ pipeline {
             steps {
                 dir('backend') {
                     sh 'mvn -B package -DskipTests'
-                    sh "docker build -t ${NEXUS_REGISTRY}/studytrack-api:${IMAGE_TAG} ."
+                    sh "docker build -t ${NEXUS_REGISTRY}/studytrack-api:${env.IMAGE_TAG} ."
                 }
                 dir('frontend') {
                     sh """
                         docker build \
                         --build-arg VITE_API_URL=${VITE_API_URL} \
-                        -t ${NEXUS_REGISTRY}/studytrack-frontend:${IMAGE_TAG} .
+                        -t ${NEXUS_REGISTRY}/studytrack-frontend:${env.IMAGE_TAG} .
                     """
                 }
             }
@@ -71,43 +59,43 @@ pipeline {
                     passwordVariable: 'NEXUS_PASSWORD'
                 )]) {
 
-                    // 1) JAR en maven-releases
+                    // 1) Publicar JAR en maven-releases
                     dir('backend') {
-                        sh '''
+                        sh """
                             cat > settings-ci.xml <<EOF
-        <settings>
-        <servers>
-            <server>
-            <id>nexus-releases</id>
-            <username>${NEXUS_USER}</username>
-            <password>${NEXUS_PASSWORD}</password>
-            </server>
-        </servers>
-        </settings>
-        EOF
+<settings>
+<servers>
+    <server>
+        <id>nexus-releases</id>
+        <username>${NEXUS_USER}</username>
+        <password>${NEXUS_PASSWORD}</password>
+    </server>
+</servers>
+</settings>
+EOF
                             mvn -B -s settings-ci.xml deploy -DskipTests \
                             -DaltDeploymentRepository=nexus-releases::default::${NEXUS_MAVEN_REPO}
                             rm -f settings-ci.xml
-                        '''
+                        """
                     }
 
-                    // 2) Imágenes Docker en docker-hosted
-                    sh '''
+                    // 2) Publicar imágenes Docker en docker-hosted (con comillas dobles para evaluar variables)
+                    sh """
                         echo "$NEXUS_PASSWORD" | docker login ${NEXUS_REGISTRY} -u "$NEXUS_USER" --password-stdin
-                        docker push ${NEXUS_REGISTRY}/studytrack-api:${IMAGE_TAG}
-                        docker push ${NEXUS_REGISTRY}/studytrack-frontend:${IMAGE_TAG}
+                        docker push ${NEXUS_REGISTRY}/studytrack-api:${env.IMAGE_TAG}
+                        docker push ${NEXUS_REGISTRY}/studytrack-frontend:${env.IMAGE_TAG}
                         docker logout ${NEXUS_REGISTRY}
-                    '''
+                    """
                 }
             }
         }
 
         stage('Deploy & Smoke Test') {
             steps {
-                // 1. Despliegue usando la imagen con el tag del build
-                sh '''
-                    IMAGE_TAG="${IMAGE_TAG}" docker compose -f deploy/docker-compose.yml up -d --build
-                '''
+                // 1. Despliegue del stack usando la variable de entorno IMAGE_TAG
+                sh """
+                    IMAGE_TAG="${env.IMAGE_TAG}" docker compose -f deploy/docker-compose.yml up -d --build
+                """
 
                 // 2. Smoke Test con reintentos para validar /api/tasks
                 sh '''
@@ -121,7 +109,6 @@ pipeline {
                     while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
                         echo "Intento $ATTEMPT de $MAX_ATTEMPTS: haciendo curl a /api/tasks..."
                         
-                        # Ajusta el puerto/host si tu servicio escucha en otro puerto (ej: http://localhost:8080/api/tasks)
                         HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/tasks || true)
 
                         if [ "$HTTP_STATUS" -eq 200 ]; then
