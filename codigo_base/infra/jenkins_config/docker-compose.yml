@@ -13,12 +13,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  smee:
+smee:
     build: ./smee
     container_name: smee-client
     environment:
       - SMEE_URL=https://smee.io/nDyRRF4E2rpHvMG
-      - SMEE_TARGET=http://jenkins:8080/github-webhook/
+      - SMEE_TARGET=http://jenkins:8080/github-webhook
     networks:
       - cicd_network
     depends_on:
