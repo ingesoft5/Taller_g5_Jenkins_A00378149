@@ -1,16 +1,16 @@
-# Stage 1: deterministic builder
-FROM maven:3.9.6-eclipse-temurin-17-alpine AS builder
+#Stage 1: Builder
+FROM maven:3.9.6-alpine AS builder
 WORKDIR /build
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN mvn -B dependency:go-offline
 COPY src ./src
-RUN mvn package -DskipTests -B
+RUN mvn -B package -DskipTests
 
-# Stage 2: minimal runtime
-FROM eclipse-temurin:17-jre-alpine AS runtime
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+#Stage 2: Runtime
+FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
-COPY --from=builder /build/target/studytrack-api.jar app.jar
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+COPY --from=builder /build/target/*.jar app.jar
 USER appuser
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

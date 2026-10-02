@@ -10,7 +10,7 @@ services:
     volumes:
       - nexus_data:/nexus-data
     environment:
-      - INSTALL4J_ADD_VM_PARAMS=-Xms1200m -Xmx1200m
+      - INSTALL4J_ADD_VM_PARAMS=-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8081/service/rest/v1/status >/dev/null"]
       interval: 30s
