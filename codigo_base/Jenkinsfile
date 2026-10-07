@@ -29,7 +29,7 @@ pipeline {
                     echo "IMAGE_TAG = ${env.IMAGE_TAG}"
                 }
 
-                dir('backend') {
+                dir('codigo_base/backend') {
                     sh 'mvn -B test'
                 }
             }
@@ -37,11 +37,11 @@ pipeline {
 
         stage('Package & Tag Inmutable') {
             steps {
-                dir('backend') {
+                dir('codigo_base/backend') {
                     sh 'mvn -B package -DskipTests'
                     sh "docker build -t ${NEXUS_REGISTRY}/studytrack-api:${env.IMAGE_TAG} ."
                 }
-                dir('frontend') {
+                dir('codigo_base/frontend') {
                     sh """
                         docker build \
                         --build-arg VITE_API_URL=${VITE_API_URL} \
@@ -60,7 +60,7 @@ pipeline {
                 )]) {
 
                     // 1) Publicar JAR en maven-releases
-                    dir('backend') {
+                    dir('codigo_base/backend') {
                         sh """
                             cat > settings-ci.xml <<EOF
 <settings>
