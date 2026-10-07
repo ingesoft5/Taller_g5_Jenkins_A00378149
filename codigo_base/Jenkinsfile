@@ -13,7 +13,7 @@ pipeline {
         // ID de la credencial creada en Jenkins > Credentials
         NEXUS_CREDENTIALS_ID = "nexus-credentials"
 
-        // URL base de la API para construir el Frontend
+        // URL base de la API para construir el Frontend (ajusta si aplica)
         VITE_API_URL = "http://localhost:8080"
     }
 
@@ -79,7 +79,7 @@ EOF
                         """
                     }
 
-                    // 2) Publicar imágenes Docker en docker-hosted (con comillas dobles para evaluar variables)
+                    // 2) Publicar imágenes Docker en docker-hosted
                     sh """
                         echo "$NEXUS_PASSWORD" | docker login ${NEXUS_REGISTRY} -u "$NEXUS_USER" --password-stdin
                         docker push ${NEXUS_REGISTRY}/studytrack-api:${env.IMAGE_TAG}
@@ -93,11 +93,12 @@ EOF
         stage('Deploy & Smoke Test') {
             steps {
                 // 1. Despliegue del stack usando la variable de entorno IMAGE_TAG
+                // NOTA: Verifica la ruta del compose file (ej: codigo_base/deploy/docker-compose.yml si está ahí)
                 sh """
                     IMAGE_TAG="${env.IMAGE_TAG}" docker compose -f deploy/docker-compose.yml up -d --build
                 """
 
-                // 2. Smoke Test con reintentos para validar /api/tasks
+                // 2. Smoke Test con host.docker.internal para salir del contenedor de Jenkins hacia la App
                 sh '''
                     echo "Iniciando validación de disponibilidad en /api/tasks..."
                     
@@ -109,7 +110,8 @@ EOF
                     while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
                         echo "Intento $ATTEMPT de $MAX_ATTEMPTS: haciendo curl a /api/tasks..."
                         
-                        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/tasks || true)
+                        # Usamos host.docker.internal en lugar de localhost para consultar el host
+                        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://host.docker.internal:8080/api/tasks || true)
 
                         if [ "$HTTP_STATUS" -eq 200 ]; then
                             echo "✅ Smoke test exitoso! /api/tasks respondió con HTTP 200 OK."
