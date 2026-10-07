@@ -61,31 +61,31 @@ pipeline {
 
                     // 1) Publicar JAR en maven-releases
                     dir('codigo_base/backend') {
-                        sh """
+                        sh '''
                             cat > settings-ci.xml <<EOF
-<settings>
-<servers>
-    <server>
-        <id>nexus-releases</id>
-        <username>${NEXUS_USER}</username>
-        <password>${NEXUS_PASSWORD}</password>
-    </server>
-</servers>
-</settings>
-EOF
+        <settings>
+        <servers>
+            <server>
+                <id>nexus-releases</id>
+                <username>${NEXUS_USER}</username>
+                <password>${NEXUS_PASSWORD}</password>
+            </server>
+        </servers>
+        </settings>
+        EOF
                             mvn -B -s settings-ci.xml deploy -DskipTests \
                             -DaltDeploymentRepository=nexus-releases::default::${NEXUS_MAVEN_REPO}
                             rm -f settings-ci.xml
-                        """
+                        '''
                     }
 
                     // 2) Publicar imágenes Docker en docker-hosted
-                    sh """
+                    sh '''
                         echo "$NEXUS_PASSWORD" | docker login ${NEXUS_REGISTRY} -u "$NEXUS_USER" --password-stdin
-                        docker push ${NEXUS_REGISTRY}/studytrack-api:${env.IMAGE_TAG}
-                        docker push ${NEXUS_REGISTRY}/studytrack-frontend:${env.IMAGE_TAG}
+                        docker push ${NEXUS_REGISTRY}/studytrack-api:${IMAGE_TAG}
+                        docker push ${NEXUS_REGISTRY}/studytrack-frontend:${IMAGE_TAG}
                         docker logout ${NEXUS_REGISTRY}
-                    """
+                    '''
                 }
             }
         }
