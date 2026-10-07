@@ -10,7 +10,7 @@ RUN npm run build
 
 # Stage 2: nginx runtime
 FROM nginx:1.27-alpine AS runtime
-COPY --from=builder /build/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d \
